@@ -17,36 +17,40 @@ pub struct Genome {
     counter: Rc<RefCell<InnovationCounter>>,
     connections: HashVec<u32, ComparableGeneInterface<ConnectionGene>>,
     neurons: HashVec<u32, ComparableGeneInterface<NeuronGene>>,
-    config: GenomeConfig
+    config: Rc<RefCell<GenomeConfig>>
 }
 
 impl Genome {
-    pub fn new(counter: Rc<RefCell<InnovationCounter>>, config: GenomeConfig) -> Genome {
+    pub fn new(counter: Rc<RefCell<InnovationCounter>>, config_cell: Rc<RefCell<GenomeConfig>>) -> Genome {
         let mut neurons: HashVec<u32, ComparableGeneInterface<NeuronGene>> = HashVec::new();
         let mut connections: HashVec<u32, ComparableGeneInterface<ConnectionGene>> = HashVec::new();
         
-        let mut i = 0;
+        {
+            let config = config_cell.borrow();
 
-        while i < config.get_n_sensor() {
-            let neuron = NeuronGene::new(i, neuron_gene::SENSOR);
-            neurons.insert_ordered(i, ComparableGeneInterface(neuron));
-            i += 1;
-        }
-        while i < config.get_n_output() + config.get_n_sensor() {
-            let neuron = NeuronGene::new(i, neuron_gene::OUTPUT);
-            neurons.insert_ordered(i, ComparableGeneInterface(neuron));
-            i += 1
-        }
+            let mut i = 0;
+
+            while i < config.get_n_sensor() {
+                let neuron = NeuronGene::new(i, neuron_gene::SENSOR);
+                neurons.insert_ordered(i, ComparableGeneInterface(neuron));
+                i += 1;
+            }
+            while i < config.get_n_output() + config.get_n_sensor() {
+                let neuron = NeuronGene::new(i, neuron_gene::OUTPUT);
+                neurons.insert_ordered(i, ComparableGeneInterface(neuron));
+                i += 1
+            }
 
 
-        if config.is_connected() {
-            for i in 0..config.get_n_sensor() {
-                for k in config.get_n_sensor()..(config.get_n_output() + config.get_n_sensor()) {
-                    let mut counter_mut = counter.borrow_mut();
-                    let innovation = counter_mut.get_connection_innovation(i, k);
-                    let connection = ConnectionGene::new(innovation, i, k, config.get_weight());
+            if config.is_connected() {
+                for i in 0..config.get_n_sensor() {
+                    for k in config.get_n_sensor()..(config.get_n_output() + config.get_n_sensor()) {
+                        let mut counter_mut = counter.borrow_mut();
+                        let innovation = counter_mut.get_connection_innovation(i, k);
+                        let connection = ConnectionGene::new(innovation, i, k, config.get_weight());
 
-                    connections.insert_ordered(innovation, ComparableGeneInterface(connection));
+                        connections.insert_ordered(innovation, ComparableGeneInterface(connection));
+                    }
                 }
             }
         }
@@ -55,8 +59,40 @@ impl Genome {
             counter,
             connections,
             neurons,
-            config,
+            config: config_cell,
         }
+    }
+
+    pub fn crossover(_gen1: &Genome, _gen2: &Genome) -> Genome {
+        unimplemented!();
+    }
+
+    pub fn distance(&self, _gen2: &Genome) -> f64 {
+        unimplemented!();
+    }
+
+    pub fn mutate(&mut self) {
+        unimplemented!();
+    }
+
+    fn mutate_create_neuron(&mut self) {
+        unimplemented!();
+    }
+
+    fn mutate_update_weight(&mut self) {
+        unimplemented!();
+    }
+
+    fn mutate_set_weight(&mut self) {
+        unimplemented!();
+    }
+
+    fn mutate_toggle_connection(&mut self) {
+        unimplemented!();
+    }
+
+    fn mutate_create_connection(&mut self) {
+        unimplemented!();
     }
 
     pub fn iter_connections(&self) -> Iter<ComparableGeneInterface<ConnectionGene>> {
@@ -129,9 +165,9 @@ mod tests {
 
     #[test]
     fn test_genome_new() {
-        let config = GenomeConfig::new(2, 2);
+        let config = Rc::new(RefCell::new(GenomeConfig::new(2, 2)));
         let counter = Rc::new(RefCell::new(InnovationCounter::new(4)));
-        let genome = Genome::new(Rc::clone(&counter), config);
+        let genome = Genome::new(Rc::clone(&counter), Rc::clone(&config));
 
         let control = &[0, 1, 2, 3];
 
@@ -149,9 +185,11 @@ mod tests {
 
         assert_eq!(genome.iter_connections().count(), 0);
 
-        let mut config = GenomeConfig::new(2, 2);
-        config.set_is_connected(true);
-        let genome = Genome::new(Rc::clone(&counter), config);
+        {
+            config.borrow_mut().set_is_connected(true);
+        }
+
+        let genome = Genome::new(Rc::clone(&counter), Rc::clone(&config));
 
         assert_eq!(genome.iter_connections().count(), 4);
     }

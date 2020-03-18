@@ -48,7 +48,7 @@ where
         if !self.data.is_sorted() {
             self.data.sort();
         }
-        let index = match self.set.get(&key) {
+        match self.set.get(&key) {
             Some(&index) => {
                 if self.data[index] != item {
                     self.data[index] = item
@@ -69,8 +69,7 @@ where
                 self.data.insert(index, item);
                 index
             }
-        };
-        index
+        }
     }
 
     pub fn contains(&self, key: K) -> bool {

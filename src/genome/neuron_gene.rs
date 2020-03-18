@@ -2,7 +2,7 @@
 
 use super::Gene;
 
-pub const SENSOR: u32 = std::u32::MIN;
+pub const SENSOR: u32 = 1;
 pub const OUTPUT: u32 = std::u32::MAX;
 
 pub struct NeuronGene {
