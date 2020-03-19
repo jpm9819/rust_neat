@@ -1,10 +1,12 @@
+extern crate rand;
+
 mod connection_gene;
 mod neuron_gene;
 pub mod genome_config;
 
 use std::slice::Iter;
 use genome_config::GenomeConfig;
-use std::ops::Deref;
+use std::ops::{ Deref, DerefMut };
 use std::cmp::Ordering;
 use connection_gene::ConnectionGene;
 use neuron_gene::NeuronGene;
@@ -12,6 +14,9 @@ use crate::utils::HashVec;
 use super::InnovationCounter;
 use std::cell::RefCell;
 use std::rc::Rc;
+use rand::{ thread_rng, Rng, seq::index::sample, rngs::ThreadRng };
+
+type ComparableGene = ComparableGeneInterface<Box<dyn Gene>>;
 
 pub struct Genome {
     counter: Rc<RefCell<InnovationCounter>>,
@@ -72,27 +77,97 @@ impl Genome {
     }
 
     pub fn mutate(&mut self) {
+        let mut rng = thread_rng();
+        let value: f64 = rng.gen();
+        let (mcc, mcn, muw, msw, mtc) = {
+            let config: &GenomeConfig = &self.config.borrow();
+            (config.get_mutate_create_connection(), config.get_mutate_create_neuron(), config.get_mutate_update_weight(), config.get_mutate_set_weight(), config.get_mutate_create_connection())
+        };
+        
+        if value > mcc {
+            self.mutate_create_connection(&mut rng);
+        }
+        if value > mcn {
+            self.mutate_create_neuron(&mut rng);
+        }
+        if value > muw {
+            self.mutate_update_weight(&mut rng);
+        }
+        if value > msw {
+            self.mutate_set_weight(&mut rng);
+        }
+        if value > mtc {
+            self.mutate_toggle_connection(&mut rng);
+        }
+    }
+
+    fn mutate_create_neuron(&mut self, _rng: &mut ThreadRng) {
         unimplemented!();
     }
 
-    fn mutate_create_neuron(&mut self) {
-        unimplemented!();
+    fn mutate_update_weight(&mut self, rng: &mut ThreadRng) {
+        let index = match sample(rng, self.connections.len(), 1).iter().next() {
+            Some(index) => index,
+            None => return
+        };
+
+        let new_weight = self.connections[index].get_weight()*0.8 + 0.2 * (self.connections[index].get_weight() + 0.1) * rng.gen::<f64>();
+        self.connections[index].set_weight(new_weight);
     }
 
-    fn mutate_update_weight(&mut self) {
-        unimplemented!();
+    fn mutate_set_weight(&mut self, rng: &mut ThreadRng) {
+        let index = if let Some(index) = sample(rng, self.connections.len(), 1).iter().next() {
+            index
+        } else {
+            return;
+        };
+        
+        let config = self.config.borrow();
+
+        self.connections[index].set_weight(config.get_weight());
     }
 
-    fn mutate_set_weight(&mut self) {
-        unimplemented!();
+    fn mutate_toggle_connection(&mut self, rng: &mut ThreadRng) {
+        let index = if let Some(index) = sample(rng, self.connections.len(), 1).iter().next() {
+            index
+        } else {
+            return;
+        };
+
+        self.connections[index].toggle_enabled();
     }
 
-    fn mutate_toggle_connection(&mut self) {
-        unimplemented!();
-    }
+    fn mutate_create_connection(&mut self, rng: &mut ThreadRng) {
+        for _ in 0..100 {    
+            let sample_rng = sample(rng, self.neurons.len(), 2);
+            let mut sample_iter = sample_rng.iter();
 
-    fn mutate_create_connection(&mut self) {
-        unimplemented!();
+            let neur1 = match sample_iter.next() {
+                Some(index) => index,
+                None => return
+            };
+
+            let connection = loop {
+                let neur2 = match sample_iter.next() {
+                    Some(index) => index,
+                    None => return
+                };
+                match self.neurons[neur1].get_class().cmp(&self.neurons[neur2].get_class()) {
+                    Ordering::Equal => continue,
+                    Ordering::Less => {
+                        let mut counter = self.counter.borrow_mut();
+                        let config = self.config.borrow();
+                        break ConnectionGene::new(counter.get_connection_innovation(neur1 as u32, neur2 as u32), neur1 as u32, neur2 as u32, config.get_weight());
+                    },
+                    Ordering::Greater => {
+                        let mut counter = self.counter.borrow_mut();
+                        let config = self.config.borrow();
+                        break ConnectionGene::new(counter.get_connection_innovation(neur2 as u32, neur1 as u32), neur2 as u32, neur1 as u32, config.get_weight());
+                    }
+                };
+            };
+            self.connections.insert_ordered(connection.get_innovation_number(), ComparableGeneInterface(connection));
+        }
     }
 
     pub fn iter_connections(&self) -> Iter<ComparableGeneInterface<ConnectionGene>> {
@@ -116,6 +191,12 @@ impl<T: Gene> Deref for ComparableGeneInterface<T> {
 
     fn deref(&self) -> &Self::Target {
         &self.0
+    }
+}
+
+impl<T: Gene> DerefMut for ComparableGeneInterface<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
     }
 }
 

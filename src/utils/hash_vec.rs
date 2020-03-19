@@ -27,6 +27,10 @@ where
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+
     pub fn insert(&mut self, key: K, item: T) -> usize {
         match self.set.get(&key) {
             Some(&index) => {
