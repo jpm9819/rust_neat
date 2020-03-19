@@ -16,8 +16,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use rand::{ thread_rng, Rng, seq::index::sample, rngs::ThreadRng };
 
-type ComparableGene = ComparableGeneInterface<Box<dyn Gene>>;
-
 pub struct Genome {
     counter: Rc<RefCell<InnovationCounter>>,
     connections: HashVec<u32, ComparableGeneInterface<ConnectionGene>>,
@@ -101,8 +99,55 @@ impl Genome {
         }
     }
 
-    fn mutate_create_neuron(&mut self, _rng: &mut ThreadRng) {
-        unimplemented!();
+    fn mutate_create_neuron(&mut self, rng: &mut ThreadRng) {
+        let sample = sample(rng, self.connections.len(), 1);
+        let mut iter_connections_index = sample.iter();
+        let mut counter = self.counter.borrow_mut();
+        
+        let index_connection = match iter_connections_index.next() {
+            Some(index) => index,
+            None => return,
+        };
+
+        #[allow(unused_mut)]
+        let mut old_connection = &mut self.connections[index_connection];
+        old_connection.toggle_enabled();
+
+        let neuron_in_innovation = old_connection.get_neuron_in();
+        let neuron_out_innovation = old_connection.get_neuron_in();
+
+        let neuron_in: &NeuronGene = self.neurons.get(neuron_in_innovation).unwrap();
+        let neuron_out: &NeuronGene = self.neurons.get(neuron_out_innovation).unwrap();
+
+        let neuron = NeuronGene::new(
+            counter.get_neuron_innovation(),
+            (neuron_in.get_class() + neuron_out.get_class())/2
+        );
+        let new_in_connection = ConnectionGene::new(
+            counter.get_connection_innovation(neuron_in_innovation, neuron.get_innovation_number()),
+            neuron_in_innovation,
+            neuron.get_innovation_number(),
+            1.0
+        );
+        let new_out_connection = ConnectionGene::new(
+            counter.get_connection_innovation(neuron.get_innovation_number(), neuron_out_innovation),
+            neuron.get_innovation_number(),
+            neuron_out_innovation,
+            self.connections[index_connection].get_weight()    
+        );
+
+        self.neurons.insert_ordered(
+            neuron.get_innovation_number(), 
+            ComparableGeneInterface(neuron)
+        );
+        self.connections.insert_ordered(
+            new_in_connection.get_innovation_number(), 
+            ComparableGeneInterface(new_in_connection)
+        );
+        self.connections.insert_ordered(
+            new_out_connection.get_innovation_number(),
+            ComparableGeneInterface(new_out_connection)
+        );
     }
 
     fn mutate_update_weight(&mut self, rng: &mut ThreadRng) {

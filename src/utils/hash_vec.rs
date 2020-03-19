@@ -8,20 +8,22 @@ use std::slice::{ Iter, IterMut };
 
 pub struct HashVec<K, T>
 where
-    K: Eq + PartialEq + Hash,
+    K: Eq + PartialEq + Hash + Copy,
     T: PartialOrd + Ord
 {
+    max_key: Option<K>,
     set: HashMap<K, usize>,
     data: Vec<T>,
 }
 
 impl<K, T> HashVec<K, T>
 where
-    K: Eq + PartialEq + Hash,
+    K: Eq + PartialEq + Hash + Copy,
     T: PartialOrd + Ord
 {
     pub fn new() -> HashVec<K, T> {
         HashVec{
+            max_key: None,
             set: HashMap::new(),
             data: Vec::new(),
         }
@@ -43,6 +45,14 @@ where
                 self.data.push(item);
                 let index = self.data.len() - 1;
                 self.set.insert(key, index);
+                match self.max_key {
+                    None => self.max_key = Some(key),
+                    Some(key) => {
+                        if self.get(key).unwrap() < &self.data[index] {
+                            self.max_key = Some(key);
+                        }
+                    }
+                }
                 index
             }
         }
@@ -71,9 +81,21 @@ where
                     }
                 }
                 self.data.insert(index, item);
+                match self.max_key {
+                    None => self.max_key = Some(key),
+                    Some(key) => {
+                        if self.get(key).unwrap() < &self.data[index] {
+                            self.max_key = Some(key);
+                        }
+                    }
+                }
                 index
             }
         }
+    }
+
+    pub fn get_max_key(&self) -> Option<K> {
+        self.max_key
     }
 
     pub fn contains(&self, key: K) -> bool {
@@ -125,7 +147,7 @@ where
 
 impl<K, T> Index<usize> for HashVec<K, T>
 where
-    K: Eq + PartialEq + Hash,
+    K: Eq + PartialEq + Hash + Copy,
     T: PartialOrd + Ord
 {
     type Output = T;
@@ -137,7 +159,7 @@ where
 
 impl<K, T> IndexMut<usize> for HashVec<K, T>
 where
-    K: Eq + PartialEq + Hash,
+    K: Eq + PartialEq + Hash + Copy,
     T: PartialOrd + Ord
 {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
